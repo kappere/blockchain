@@ -1,0 +1,13 @@
+.ant-layout-content {
+    min-height: unset!important;
+}
+
+@media only screen and (-ms-high-contrast: active), (-ms-high-contrast: none) {
+    .ant-dropdown,
+    .ant-select-dropdown,
+    .ant-picker-dropdown {
+        animation-duration: 0s !important;
+    }
+}
+
+@import './assets/common.css';

@@ -1,0 +1,9 @@
+spring:
+  profiles:
+    active: dev
+server:
+  port: 8080
+blockchain:
+  role: admin
+  admin:
+    registry: localhost:8080

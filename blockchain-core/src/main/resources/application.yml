@@ -1,0 +1,9 @@
+spring:
+  profiles:
+    active: dev
+  main:
+    web-application-type: none
+blockchain:
+  role: node
+  admin:
+    registry: localhost:8080
