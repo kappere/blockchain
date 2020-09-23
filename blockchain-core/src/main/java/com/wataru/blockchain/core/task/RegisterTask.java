@@ -6,6 +6,7 @@ import com.wataru.blockchain.core.primitive.Miner;
 import com.wataru.blockchain.core.task.annotation.TaskSync;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -16,6 +17,8 @@ import org.springframework.stereotype.Component;
 public class RegisterTask {
     @Autowired
     private AdminApi adminApi;
+    @Value("${blockchain.miner.address}")
+    private String minerAddress;
 
     @Scheduled(cron = "0/30 * * * * ?")
     @TaskSync
@@ -45,6 +48,6 @@ public class RegisterTask {
         if (NodeRegistry.clientRegistry.getNodeList().getNodes().isEmpty()) {
             return;
         }
-        new Miner("1Dvi7Rah81zm1UpSSKyQ8sAmfDmi2WHcb8").mine();
+        new Miner(minerAddress).mine();
     }
 }

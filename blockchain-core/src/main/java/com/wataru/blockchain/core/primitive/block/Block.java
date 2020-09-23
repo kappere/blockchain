@@ -1,5 +1,9 @@
 package com.wataru.blockchain.core.primitive.block;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.wataru.blockchain.core.primitive.ByteBlob;
+import com.wataru.blockchain.core.primitive.serialize.ByteArraySerializer;
+import com.wataru.blockchain.core.primitive.serialize.ByteSerializable;
 import com.wataru.blockchain.core.primitive.transaction.Transaction;
 import com.wataru.blockchain.core.util.EncodeUtil;
 import com.wataru.blockchain.core.util.JsonUtil;
@@ -16,7 +20,7 @@ import java.util.function.Function;
  */
 @Data
 @Slf4j
-public class Block {
+public class Block implements ByteSerializable {
     /**
      * 版本
      */
@@ -25,12 +29,14 @@ public class Block {
     /**
      * 前一个区块的Hash值
      */
-    private String prevBlockHash;
+    @JsonSerialize(using = ByteArraySerializer.ByteArrayToHexSerializer.class)
+    private ByteBlob.Byte256 prevBlockHash;
 
     /**
      * 包含交易信息的Merkle树根
      */
-    private String merkleRootHash;
+    @JsonSerialize(using = ByteArraySerializer.ByteArrayToHexSerializer.class)
+    private ByteBlob.Byte256 merkleRootHash;
 
     /**
      * 区块产生的时间
@@ -40,7 +46,7 @@ public class Block {
     /**
      * 工作量证明(POW)的难度
      */
-    private int bits;
+    private int difficulty;
 
     /**
      * 要找的符合POW的随机数
@@ -55,7 +61,8 @@ public class Block {
     /**
      * 当前区块的Hash值
      */
-    private String hash;
+    @JsonSerialize(using = ByteArraySerializer.ByteArrayToHexSerializer.class)
+    private ByteBlob.Byte256 hash;
 
     /**
      * 区块包含的交易
@@ -73,6 +80,7 @@ public class Block {
     public Block(Block latestBlock, long time) {
         this.index = latestBlock.getIndex() + 1;
         this.setPrevBlockHash(latestBlock.getHash());
+        this.setMerkleRootHash(new ByteBlob.Byte256());
         this.setTime(time);
         this.transactions = new ArrayList<>();
     }
@@ -80,32 +88,35 @@ public class Block {
     /**
      * 计算block的hash值
      */
-    public String computeHash() {
+    public ByteBlob.Byte256 computeHash() {
         String hashStr = String.format("%d,%d,%d,%s,%s", index, getTime(), getNonce(), getPrevBlockHash(), JsonUtil.toJson(transactions));
-        return EncodeUtil.sha256(hashStr);
+        return EncodeUtil.sha256(hashStr.getBytes());
     }
 
     public boolean mine(int difficulty, Function<Integer, Boolean> interruptCondition) {
         log.info("Mining block {}", index);
-        String proof = proofOfWork(difficulty, interruptCondition);
+        ByteBlob.Byte256 proof = proofOfWork(difficulty, interruptCondition);
         if (proof == null) {
             return false;
         }
         hash = proof;
-        log.info("Mined block {}, proof: {}, block:\n{}", index, proof, JsonUtil.toPrettyJson(this));
+        log.info("Mined block {}, proof: {}, block:\n{}", index, proof.toHex(), JsonUtil.toPrettyJson(this));
         return true;
     }
 
     public boolean validatePoofOfWork(int difficulty) {
-        String hashPrefix = StringUtil.dup("0", difficulty);
-        String h = computeHash();
-        return h.substring(0, difficulty).equals(hashPrefix);
+        ByteBlob.Byte256 h = computeHash();
+        return checkHashPrefix(h, difficulty);
     }
 
-    private String proofOfWork(int difficulty, Function<Integer, Boolean> interruptCondition) {
+    private boolean checkHashPrefix(ByteBlob.Byte256 hash, int difficulty) {
         String hashPrefix = StringUtil.dup("0", difficulty);
-        String h = computeHash();
-        while (!h.substring(0, difficulty).equals(hashPrefix)) {
+        return hash.toHex().startsWith(hashPrefix);
+    }
+
+    private ByteBlob.Byte256 proofOfWork(int difficulty, Function<Integer, Boolean> interruptCondition) {
+        ByteBlob.Byte256 h = computeHash();
+        while (!checkHashPrefix(h, difficulty)) {
             if (interruptCondition.apply(index)) {
                 return null;
             }
@@ -115,18 +126,38 @@ public class Block {
         return h;
     }
 
-    private BlockHeader getBlockHeader() {
-        return new BlockHeader()
-                .setVersion(getVersion())
-                .setHashPrevBlock(getPrevBlockHash())
-                .setHashMerkleRoot(getMerkleRootHash())
-                .setTime(getTime())
-                .setBits(getBits())
-                .setNonce(getNonce());
-    }
-
     @Override
     public String toString() {
         return JsonUtil.toPrettyJson(this);
+    }
+
+    @Override
+    public byte[] serialize() {
+        return new ByteArraySerializer.Builder()
+                .push(this.version)
+                .push(this.prevBlockHash, false)
+                .push(this.merkleRootHash, false)
+                .push(this.time)
+                .push(this.difficulty)
+                .push(this.nonce)
+                .push(this.index)
+                .push(this.hash, false)
+                .push(this.transactions, true)
+                .build(ByteArraySerializer::new).getData();
+    }
+
+    @Override
+    public int deserialize(byte[] data) {
+        return new ByteArraySerializer.Extractor(data)
+                .pullInt(var -> this.version = var)
+                .pullObject(ByteBlob.Byte256::new, var -> this.prevBlockHash = var)
+                .pullObject(ByteBlob.Byte256::new, var -> this.merkleRootHash = var)
+                .pullLong(var -> this.time = var)
+                .pullInt(var -> this.difficulty = var)
+                .pullInt(var -> this.nonce = var)
+                .pullInt(var -> this.index = var)
+                .pullObject(ByteBlob.Byte256::new, var -> this.hash = var)
+                .pullListWithSize(Transaction::new, var -> this.transactions = var)
+                .complete();
     }
 }

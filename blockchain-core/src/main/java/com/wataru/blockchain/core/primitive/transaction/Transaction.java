@@ -1,28 +1,29 @@
 package com.wataru.blockchain.core.primitive.transaction;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.wataru.blockchain.core.exception.BizException;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.wataru.blockchain.core.primitive.Blockchain;
+import com.wataru.blockchain.core.primitive.ByteBlob;
 import com.wataru.blockchain.core.primitive.LockScript;
-import com.wataru.blockchain.core.primitive.crypto.Secp256k1;
+import com.wataru.blockchain.core.primitive.Script;
+import com.wataru.blockchain.core.primitive.serialize.ByteSerializable;
+import com.wataru.blockchain.core.primitive.serialize.ByteArraySerializer;
 import com.wataru.blockchain.core.util.EncodeUtil;
 import com.wataru.blockchain.core.util.JsonUtil;
 import lombok.Data;
 import org.springframework.data.redis.util.ByteUtils;
 
-import java.security.PrivateKey;
-import java.security.PublicKey;
 import java.util.*;
 import java.util.stream.Collectors;
 
 @Data
-public class Transaction {
+public class Transaction implements ByteSerializable {
     private int version;
     private int locktime;
     /**
      * 交易ID
      */
-    private String transactionId;
+    @JsonSerialize(using = ByteArraySerializer.ByteArrayToHexSerializer.class)
+    private ByteBlob.Byte256 transactionId;
     /**
      * 交易输入
      */
@@ -35,7 +36,7 @@ public class Transaction {
     public Transaction() {}
 
     public Transaction(List<TransactionInput> inputs, List<TransactionOutput> outputs) {
-        this.transactionId = UUID.randomUUID().toString();
+        this.transactionId = new ByteBlob.Byte256(UUID.randomUUID().toString().replace("-", ""));
         this.version = 1;
         this.locktime = 0xFFFFFFFF;
         this.inputs = inputs;
@@ -43,9 +44,16 @@ public class Transaction {
     }
 
     /**
+     * 计算交易hash
+     */
+    public ByteBlob.Byte256 hash() {
+        return getToSignData(null);
+    }
+
+    /**
      * 获取待签名/验签的数据
      */
-    public byte[] getToSignData(Map<TransactionInput, TransactionOutput> srcUtxoMap) {
+    public ByteBlob.Byte256 getToSignData(Map<TransactionInput, TransactionOutput> srcUtxoMap) {
         if (srcUtxoMap == null) {
             srcUtxoMap = new HashMap<>();
             // 获取input引用的输出
@@ -62,7 +70,6 @@ public class Transaction {
             }
         }
         return EncodeUtil.sha256(ByteUtils.concatAll(
-                transactionId.getBytes(),
                 JsonUtil.toJson(inputs.stream()
                         .map(TransactionInput::new)
                         .peek(item -> item.setScriptSig(finalSrcUtxoMap.get(item).getScriptPubKey()))
@@ -103,7 +110,7 @@ public class Transaction {
         long inputsValue = getInputsValue();
         long fee = 0;
         if (!Blockchain.instance.getChain().isEmpty()) {
-            byte[] toSignData = getToSignData(srcUtxoMap);
+            ByteBlob.Byte256 toSignData = getToSignData(srcUtxoMap);
             if (toSignData == null) {
                 return false;
             }
@@ -169,8 +176,36 @@ public class Transaction {
     }
 
     @Override
+    public byte[] serialize() {
+        return new ByteArraySerializer.Builder()
+                .push(this.version)
+                .push(transactionId, false)
+                .push(this.inputs, true)
+                .push(this.outputs, true)
+                .push(this.locktime)
+                .build(ByteArraySerializer::new).getData();
+    }
+
+    @Override
+    public int deserialize(byte[] data) {
+        return new ByteArraySerializer.Extractor(data)
+                .pullInt(var -> this.version = var)
+                .pullObject(ByteBlob.Byte256::new, var -> this.transactionId = var)
+                .pullListWithSize(TransactionInput::new, var -> this.inputs = var)
+                .pullListWithSize(TransactionOutput::new, var -> this.outputs = var)
+                .pullInt(var -> this.locktime = var)
+                .complete();
+    }
+
+    @Override
     public String toString() {
-        return JsonUtil.toPrettyJson(this);
+        return "Transaction{" +
+                "version=" + version +
+                ", locktime=" + locktime +
+                ", transactionId='" + transactionId + '\'' +
+                ", inputs=" + inputs +
+                ", outputs=" + outputs +
+                '}';
     }
 
     @Override
@@ -195,11 +230,12 @@ public class Transaction {
     }
 
     @Data
-    public static class TransactionInput {
+    public static class TransactionInput implements ByteSerializable {
         /**
          * 交易ID，引用包含正在使用的UTXO的交易
          */
-        private String transactionId;
+        @JsonSerialize(using = ByteArraySerializer.ByteArrayToHexSerializer.class)
+        private ByteBlob.Byte256 transactionId;
         /**
          * 输出索引（ vout ），标识使用来自该交易的哪个UTXO（第一个从0开始）
          */
@@ -208,11 +244,12 @@ public class Transaction {
          * 满足UTXO上的条件的脚本，用于解锁并花费
          * <Sig> <PubKey>
          */
-        private String scriptSig;
+        @JsonSerialize(using = Script.ScriptByteArrayToStringSerializer.class)
+        private Script scriptSig;
         /**
          * 序列号
          */
-        private long sequence;
+        private int sequence;
 
         public TransactionInput() {}
 
@@ -223,7 +260,7 @@ public class Transaction {
             this.sequence = transactionInput.getSequence();
         }
 
-        public TransactionInput(String transactionId, int vout, String scriptSig, long sequence) {
+        public TransactionInput(ByteBlob.Byte256 transactionId, int vout, Script scriptSig, int sequence) {
             this.transactionId = transactionId;
             this.vout = vout;
             this.scriptSig = scriptSig;
@@ -249,10 +286,40 @@ public class Transaction {
         public int hashCode() {
             return Objects.hash(transactionId, vout, scriptSig, sequence);
         }
+
+        @Override
+        public String toString() {
+            return "TransactionInput{" +
+                    "transactionId='" + transactionId + '\'' +
+                    ", vout=" + vout +
+                    ", scriptSig='" + scriptSig.toString() + '\'' +
+                    ", sequence=" + sequence +
+                    '}';
+        }
+
+        @Override
+        public byte[] serialize() {
+            return new ByteArraySerializer.Builder()
+                    .push(this.transactionId, false)
+                    .push(this.vout)
+                    .push(this.scriptSig, true)
+                    .push(this.sequence)
+                    .build(ByteArraySerializer::new).getData();
+        }
+
+        @Override
+        public int deserialize(byte[] data) {
+            return new ByteArraySerializer.Extractor(data)
+                    .pullObject(ByteBlob.Byte256::new, val -> this.transactionId = val)
+                    .pullInt(val -> this.vout = val)
+                    .pullObjectWithSize(Script::new, val -> this.scriptSig = val)
+                    .pullInt(val -> this.sequence = val)
+                    .complete();
+        }
     }
 
     @Data
-    public static class TransactionOutput {
+    public static class TransactionOutput implements ByteSerializable {
         /**
          * 一些比特币，最小单位为 聪 satoshis
          */
@@ -262,11 +329,12 @@ public class Transaction {
          * 这个谜题也被称为 锁定脚本 locking script ，见证脚本 witness script ，或者 scriptPubKey
          * OP_DUP OP_HASH160 <PubkeyHash> OP_EQUALVERIFY OP_CHECKSIG
          */
-        private String scriptPubKey;
+        @JsonSerialize(using = Script.ScriptByteArrayToStringSerializer.class)
+        private Script scriptPubKey;
 
         public TransactionOutput() {}
 
-        public TransactionOutput(long value, String scriptPubKey) {
+        public TransactionOutput(long value, Script scriptPubKey) {
             this.value = value;
             this.scriptPubKey = scriptPubKey;
         }
@@ -287,6 +355,30 @@ public class Transaction {
         @Override
         public int hashCode() {
             return Objects.hash(value, scriptPubKey);
+        }
+
+        @Override
+        public String toString() {
+            return "TransactionOutput{" +
+                    "value=" + value +
+                    ", scriptPubKey='" + scriptPubKey.toString() + '\'' +
+                    '}';
+        }
+
+        @Override
+        public byte[] serialize() {
+            return new ByteArraySerializer.Builder()
+                    .push(this.value)
+                    .push(this.scriptPubKey, true)
+                    .build(ByteArraySerializer::new).getData();
+        }
+
+        @Override
+        public int deserialize(byte[] data) {
+            return new ByteArraySerializer.Extractor(data)
+                    .pullLong(val -> this.value = val)
+                    .pullObjectWithSize(Script::new, val -> this.scriptPubKey = val)
+                    .complete();
         }
     }
 }

@@ -1,10 +1,8 @@
 package com.wataru.blockchain.core.primitive;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.wataru.blockchain.core.exception.BizException;
 import com.wataru.blockchain.core.primitive.block.Block;
 import com.wataru.blockchain.core.primitive.crypto.Base58Check;
-import com.wataru.blockchain.core.primitive.crypto.Secp256k1;
 import com.wataru.blockchain.core.primitive.transaction.Transaction;
 import com.wataru.blockchain.core.primitive.transaction.Utxo;
 import com.wataru.blockchain.core.util.EncodeUtil;
@@ -31,7 +29,6 @@ public class Blockchain {
     /**
      * 未确认交易
      */
-    @JsonIgnore
     private List<Transaction> unconfirmedTransactions;
 
     public Blockchain() {
@@ -48,7 +45,7 @@ public class Blockchain {
 
     public Block createGenesisBlock() {
         Block genesisBlock = new Block(0, System.currentTimeMillis());
-        String genesisAddress = EncodeUtil.bytesToHexString(addressToPublicKeyHash("1Dvi7Rah81zm1UpSSKyQ8sAmfDmi2WHcb8"));
+        ByteBlob.Byte160 genesisAddress = addressToPublicKeyHash("14XkoruvE49hZtSVeLRAauza35F6VHS7Nv");
         List<Transaction.TransactionOutput> outputs = new ArrayList<>();
         // 转账到交易目标账户
         outputs.add(new Transaction.TransactionOutput(10000000000000L, LockScript.formatLockScript(genesisAddress)));
@@ -56,7 +53,8 @@ public class Blockchain {
         transaction.processTransaction();
         clearUnconfirmedTransaction();
         genesisBlock.getTransactions().add(transaction);
-        genesisBlock.setPrevBlockHash("0");
+        genesisBlock.setPrevBlockHash(new ByteBlob.Byte256());
+        genesisBlock.setMerkleRootHash(new ByteBlob.Byte256());
         genesisBlock.setHash(genesisBlock.computeHash());
         return genesisBlock;
     }
@@ -65,7 +63,7 @@ public class Blockchain {
         return chain.get(chain.size() - 1);
     }
 
-    public Transaction getTransactionInUnconfirmed(String transactionId) {
+    public Transaction getTransactionInUnconfirmed(ByteBlob.Byte256 transactionId) {
         for (Transaction unconfirmedTransaction : unconfirmedTransactions) {
             if (unconfirmedTransaction.getTransactionId().equals(transactionId)) {
                 return unconfirmedTransaction;
@@ -109,7 +107,7 @@ public class Blockchain {
     /**
      * 获取out，当UTXO中已经移除该out时，需要查找整条链
      */
-    public Transaction.TransactionOutput getTransactionOutput(String transactionId, int vout) {
+    public Transaction.TransactionOutput getTransactionOutput(ByteBlob.Byte256 transactionId, int vout) {
         for (Block block : chain) {
             for (Transaction transaction : block.getTransactions()) {
                 if (transaction.getTransactionId().equals(transactionId)) {
@@ -217,18 +215,18 @@ public class Blockchain {
     }
 
     public static String publicKeyToAddress(PublicKey publicKey) {
-        byte[] publicKeyHash = EncodeUtil.hash160(publicKey.getEncoded());
-        return Base58Check.bytesToBase58(ByteUtils.concat(VersionPrefix.BITCOIN_ADDRESS, publicKeyHash));
+        ByteBlob.Byte160 publicKeyHash = EncodeUtil.hash160(new ByteBlob.Byte256(publicKey.getEncoded()));
+        return Base58Check.bytesToBase58(ByteUtils.concat(VersionPrefix.BITCOIN_ADDRESS, publicKeyHash.getData()));
     }
 
-    public static byte[] addressToPublicKeyHash(String address) {
+    public static ByteBlob.Byte160 addressToPublicKeyHash(String address) {
         byte[] bytes = Base58Check.base58ToBytes(address);
         for (int i = 0; i < VersionPrefix.BITCOIN_ADDRESS.length; i++) {
             if (bytes[i] != VersionPrefix.BITCOIN_ADDRESS[i]) {
                 throw new BizException("地址转码失败");
             }
         }
-        return Arrays.copyOfRange(bytes, VersionPrefix.BITCOIN_ADDRESS.length, bytes.length);
+        return new ByteBlob.Byte160(Arrays.copyOfRange(bytes, VersionPrefix.BITCOIN_ADDRESS.length, bytes.length));
     }
 
     public List<Transaction> collectUnconfirmedTransactions(int size) {
@@ -248,6 +246,7 @@ public class Blockchain {
         try (FileOutputStream fos = new FileOutputStream(file)) {
             fos.write(JsonUtil.serialize(this));
         }
+        log.info("Blockchain saved in file {}.", filename);
     }
 
     public void restore(String filename) throws IOException {
@@ -262,5 +261,6 @@ public class Blockchain {
                 }
             }
         }
+        log.info("Blockchain restored from file {}.", filename);
     }
 }

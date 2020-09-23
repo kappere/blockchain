@@ -13,8 +13,7 @@ import {
     UserOutlined,
     DashboardOutlined,
     LogoutOutlined,
-    BlockOutlined,
-    MonitorOutlined
+    BlockOutlined
 } from '@ant-design/icons'
 
 function BasicLayout(props) {
@@ -48,18 +47,18 @@ function BasicLayout(props) {
                         title={
                             <span>
                                 <DashboardOutlined />
-                                <span>DASHBOARD</span>
+                                <span>仪表盘</span>
                             </span>
                         }
                     >
                         <Menu.Item key={`/node`} icon={<NodeIndexOutlined />}>
-                            <Link to={`/node`}>NODE</Link>
+                            <Link to={`/node`}>节点</Link>
                         </Menu.Item>
                         <Menu.Item key={`/blockchain`} icon={<BlockOutlined />}>
-                            <Link to={`/blockchain`}>BLOCKCHAIN</Link>
+                            <Link to={`/blockchain`}>本地链</Link>
                         </Menu.Item>
                         <Menu.Item key={`/wallet`} icon={<BlockOutlined />}>
-                            <Link to={`/wallet`}>WALLET</Link>
+                            <Link to={`/wallet`}>钱包</Link>
                         </Menu.Item>
                     </Menu.SubMenu>
                 </Menu>

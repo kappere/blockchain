@@ -1,5 +1,6 @@
 package com.wataru.blockchain.core.util;
 
+import com.wataru.blockchain.core.primitive.ByteBlob;
 import com.wataru.blockchain.core.primitive.crypto.Ripemd160;
 import org.apache.commons.codec.digest.DigestUtils;
 
@@ -51,20 +52,20 @@ public class EncodeUtil {
         return DigestUtils.sha256Hex(str);
     }
 
-    public static byte[] sha256(byte[] data) {
-        return DigestUtils.sha256(data);
+    public static ByteBlob.Byte256 sha256(byte[] bytes) {
+        return new ByteBlob.Byte256(DigestUtils.sha256(bytes));
     }
 
     public static String sha1(String str) {
         return DigestUtils.sha1Hex(str);
     }
 
-    public static byte[] hash160(byte[] data) {
+    private static byte[] hash160(byte[] data) {
         return Ripemd160.getHash(DigestUtils.sha256(data));
     }
 
-    public static String hash160Hex(String hex) {
-        return bytesToHexString(EncodeUtil.hash160(hexStringToByte(hex)));
+    public static ByteBlob.Byte160 hash160(ByteBlob.Byte256 data) {
+        return new ByteBlob.Byte160(EncodeUtil.hash160(data.getData()));
     }
 
     //hash
@@ -115,6 +116,15 @@ public class EncodeUtil {
         }
         return bytes;
 
+    }
+
+    public static byte[] reverseByteArray(byte[] data) {
+        for (int i = 0; i < data.length / 2; i++) {
+            byte tmp = data[i];
+            data[i] = data[data.length - i - 1];
+            data[data.length - i - 1] = tmp;
+        }
+        return data;
     }
 
     private static final String HEX_STRING = "0123456789abcdef";

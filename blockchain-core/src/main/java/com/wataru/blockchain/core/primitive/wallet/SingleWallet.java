@@ -4,6 +4,7 @@ import com.wataru.blockchain.core.exception.BizException;
 import com.wataru.blockchain.core.net.Notifier;
 import com.wataru.blockchain.core.net.packet.payload.TransactionPayload;
 import com.wataru.blockchain.core.primitive.Blockchain;
+import com.wataru.blockchain.core.primitive.ByteBlob;
 import com.wataru.blockchain.core.primitive.LockScript;
 import com.wataru.blockchain.core.primitive.VersionPrefix;
 import com.wataru.blockchain.core.primitive.crypto.Base58Check;
@@ -52,8 +53,7 @@ public class SingleWallet extends Wallet {
     }
 
     public Transaction createTransaction(String address, long value) {
-        byte[] publicKeyHash = Blockchain.addressToPublicKeyHash(address);
-        String publicKeyHashHex = EncodeUtil.bytesToHexString(publicKeyHash);
+        ByteBlob.Byte160 publicKeyHash = Blockchain.addressToPublicKeyHash(address);
         refreshUtxos();
         long balance = getBalance();
         if (balance < value) {
@@ -70,19 +70,20 @@ public class SingleWallet extends Wallet {
             inputs.add(new Transaction.TransactionInput(
                     personalUtxo.getTransactionId(),
                     personalUtxo.getVout(),
-                    "",
+                    null,
                     0));
             if (total >= value) {
                 long leftOver = total - value;
                 List<Transaction.TransactionOutput> outputs = new ArrayList<>();
                 // 转账到交易目标账户
-                outputs.add(new Transaction.TransactionOutput(value, LockScript.formatLockScript(publicKeyHashHex)));
+                outputs.add(new Transaction.TransactionOutput(value, LockScript.formatLockScript(publicKeyHash)));
                 Transaction transaction = new Transaction(inputs, outputs);
-                byte[] toSignData = transaction.getToSignData(null);
+                ByteBlob.Byte256 toSignData = transaction.getToSignData(null);
                 for (Transaction.TransactionInput input : transaction.getInputs()) {
                     input.setScriptSig(LockScript.formatUnlockScript(
-                            EncodeUtil.bytesToHexString(Secp256k1.sign(toSignData, privateKey)),
-                            EncodeUtil.bytesToHexString(publicKey.getEncoded())));
+                            Secp256k1.sign(toSignData, privateKey).concat((byte) 0x01),
+                            new ByteBlob.ByteVar(publicKey.getEncoded())
+                    ));
                 }
                 byte[] payload = JsonUtil.toJson(transaction).getBytes();
                 long fee = payload.length / 200;
@@ -97,16 +98,17 @@ public class SingleWallet extends Wallet {
                 if (leftOver > 0L) {
                     outputs.add(new Transaction.TransactionOutput(
                             leftOver,
-                            LockScript.formatLockScript(EncodeUtil.hash160Hex(EncodeUtil.bytesToHexString(publicKey.getEncoded())))));
+                            LockScript.formatLockScript(EncodeUtil.hash160(new ByteBlob.Byte256(publicKey.getEncoded())))));
                 }
                 // 重新计算解锁脚本
                 toSignData = transaction.getToSignData(null);
                 for (Transaction.TransactionInput input : transaction.getInputs()) {
                     input.setScriptSig(LockScript.formatUnlockScript(
-                            EncodeUtil.bytesToHexString(Secp256k1.sign(toSignData, privateKey)),
-                            EncodeUtil.bytesToHexString(publicKey.getEncoded())));
+                            Secp256k1.sign(toSignData, privateKey).concat((byte) 0x01),
+                            new ByteBlob.ByteVar(publicKey.getEncoded())
+                    ));
                 }
-                Notifier.broadcast(new TransactionPayload(JsonUtil.toJson(transaction)));
+                Notifier.broadcast(new TransactionPayload(transaction));
                 return transaction;
             }
         }

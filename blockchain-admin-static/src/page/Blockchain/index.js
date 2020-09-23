@@ -3,7 +3,7 @@ import chain_api from '@/api/chain_api'
 import { Spin, List, Avatar, Card, Descriptions } from 'antd'
 
 export default function Blockchain() {
-    let [blockchain, setBlockchain] = React.useState({})
+    let [blockchain, setBlockchain] = React.useState({chain:[]})
     let [loading, setLoading] = React.useState(true)
     React.useEffect(() => {
         chain_api.chainDetail().then(data => {
@@ -16,9 +16,9 @@ export default function Blockchain() {
             <Spin spinning={loading}>
                 <div>
                     <Card>
-                        <Descriptions title="Detail" column={1}>
-                            <Descriptions.Item label="Difficulty">{blockchain.difficulty}</Descriptions.Item>
-                            <Descriptions.Item label="Length">{blockchain.chain && blockchain.chain.length}</Descriptions.Item>
+                        <Descriptions title="详情" column={1}>
+                            <Descriptions.Item label="难度">{blockchain.difficulty}</Descriptions.Item>
+                            <Descriptions.Item label="长度">{blockchain.chain && blockchain.chain.length}</Descriptions.Item>
                         </Descriptions>
                     </Card>
                 </div>
@@ -32,7 +32,7 @@ export default function Blockchain() {
                                     <List.Item.Meta
                                         avatar={<Avatar className="light-blue darken-1">{item.index + 1}</Avatar>}
                                         title={item.hash}
-                                        description={`Transactions: ${item.transactions.length}`}
+                                        description={`交易数量：${item.transactions.length}`}
                                     />
                                 </Card>
                             </List.Item>

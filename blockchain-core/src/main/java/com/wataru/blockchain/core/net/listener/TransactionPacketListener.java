@@ -8,7 +8,7 @@ import com.wataru.blockchain.core.util.JsonUtil;
 public class TransactionPacketListener implements PacketListener<TransactionPayload> {
     @Override
     public synchronized ResponsePayload onMessage(TransactionPayload payload) {
-        Transaction transaction = JsonUtil.fromJson(payload.getData(), Transaction.class);
+        Transaction transaction = payload.toTransaction();
         return new ResponsePayload(transaction.processTransaction());
     }
 }

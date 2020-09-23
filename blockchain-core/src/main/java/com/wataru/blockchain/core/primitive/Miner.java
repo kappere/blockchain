@@ -56,7 +56,7 @@ public class Miner {
 
     private Block createNewBlock(List<Transaction> newUnconfirmedTransactions) {
         // 矿工地址
-        String publicKeyHashHex = EncodeUtil.bytesToHexString(Blockchain.addressToPublicKeyHash(address));
+        ByteBlob.Byte160 publicKeyHash = Blockchain.addressToPublicKeyHash(address);
         Block block = new Block(blockchain.latestBlock(), System.currentTimeMillis());
         block.setTransactions(newUnconfirmedTransactions);
         // 计算奖励金额
@@ -67,7 +67,7 @@ public class Miner {
         // 添加奖励交易
         Transaction awardTransaction = new Transaction(
                 Collections.emptyList(),
-                Collections.singletonList(new Transaction.TransactionOutput(award, LockScript.formatLockScript(publicKeyHashHex))));
+                Collections.singletonList(new Transaction.TransactionOutput(award, LockScript.formatLockScript(publicKeyHash))));
         newUnconfirmedTransactions.add(0, awardTransaction);
         return block;
     }

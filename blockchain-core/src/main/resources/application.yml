@@ -7,3 +7,5 @@ blockchain:
   role: node
   admin:
     registry: localhost:8080
+  miner:
+    address: 14XkoruvE49hZtSVeLRAauza35F6VHS7Nv

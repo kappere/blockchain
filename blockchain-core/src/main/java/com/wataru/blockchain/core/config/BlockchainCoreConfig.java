@@ -6,9 +6,7 @@ import com.wataru.blockchain.core.net.NodeRegistry;
 import com.wataru.blockchain.core.net.AdminApi;
 import com.wataru.blockchain.core.net.client.NodeCoreClient;
 import com.wataru.blockchain.core.net.server.NodeCoreServer;
-import com.wataru.blockchain.core.primitive.block.BlockHeader;
 import com.wataru.blockchain.core.util.IpUtil;
-import com.wataru.blockchain.core.util.JsonUtil;
 import lombok.Getter;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.annotation.Value;
@@ -58,7 +56,7 @@ public class BlockchainCoreConfig implements DisposableBean {
         NodeRegistry.clientRegistry.setLocalPort(coreServerPort);
         localNode = new Node(IpUtil.getLocalIpAddress(), coreServerPort);
         localNode.setExpireTime(-1);
-        Blockchain.instance.restore("chain_" + localNode.toString().replaceAll("[:.]", "_") + ".dat");
+//        Blockchain.instance.restore("chain_" + localNode.toString().replaceAll("[:.]", "_") + ".dat");
     }
 
     @Override

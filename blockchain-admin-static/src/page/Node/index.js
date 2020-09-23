@@ -18,7 +18,7 @@ export default function Node() {
                     dataSource={nodeList}
                     renderItem={item => (
                         <List.Item>
-                            <Card hoverable title={`${item.ip}:${item.port}`}>Expire at {new Date(item.expireTime).toLocaleString()}</Card>
+                            <Card hoverable title={`${item.ip}:${item.port}`}>过期时间：{new Date(item.expireTime).toLocaleString()}</Card>
                         </List.Item>
                     )}
                 />

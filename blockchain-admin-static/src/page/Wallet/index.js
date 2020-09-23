@@ -1,6 +1,6 @@
 import React from 'react'
 import transaction_api from '@/api/transaction_api'
-import { Card, List, Spin, Button, Modal, Form, Input, PageHeader, Tabs, Statistic, Row, Col } from 'antd'
+import { Card, List, Spin, Button, Modal, Form, Input, PageHeader, Tabs, Typography, Statistic, Row, Col } from 'antd'
 export default function Wallet() {
     let [wallets, setWallets] = React.useState([])
     let [loading, setLoading] = React.useState(false)
@@ -26,10 +26,10 @@ export default function Wallet() {
                 style={{ marginTop: '1px' }}
                 footer={
                     <Tabs defaultActiveKey="1" onChange={(activeKey) => setTabKey(activeKey)}>
-                        <Tabs.TabPane tab="Single Wallet" key="1">
+                        <Tabs.TabPane tab="单地址钱包" key="1">
 
                         </Tabs.TabPane>
-                        <Tabs.TabPane tab="Seeded Wallet" key="2">
+                        <Tabs.TabPane tab="种子钱包" key="2">
 
                         </Tabs.TabPane>
                     </Tabs>
@@ -57,17 +57,19 @@ export default function Wallet() {
                                             <div>
                                                 <Row gutter={16}>
                                                     <Col span={8}>
-                                                        <Statistic title="Balance (Satochi)" value={item.balance} />
+                                                        <Statistic title="余额 (Satochi)" value={item.balance} />
                                                         <Button className="mt-4" type="primary" onClick={() => {
                                                             setCurrentWallet(item)
                                                             form.resetFields()
                                                             setShowNewTransactionModal(true)
                                                         }}>
-                                                            Transfer
+                                                            转账
                                                         </Button>
                                                     </Col>
                                                     <Col span={16}>
-                                                        <Statistic title="Address" value={item.address} />
+                                                        <Typography.Paragraph copyable={{ text: item.address }}>
+                                                            <Statistic title="地址" value={item.address} />
+                                                        </Typography.Paragraph>
                                                     </Col>
                                                 </Row>
                                             </div>
