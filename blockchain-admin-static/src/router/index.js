@@ -1,4 +1,3 @@
-
 import React from 'react'
 import {
     BrowserRouter as Router,
@@ -25,20 +24,25 @@ const routerConfig = [
             {
                 path: '/node',
                 component: () => import('@/page/Node'),
+                meta: {
+                    title: '节点 - 区块链'
+                }
             },
             {
                 path: '/blockchain',
                 component: () => import('@/page/Blockchain'),
             },
             {
-                path: '/dataTable',
-                component: () => import('@/page/DataTable'),
-            },
-            {
                 path: '/wallet',
                 component: () => import('@/page/Wallet'),
+                meta: {
+                    title: '钱包 - 区块链'
+                }
             },
-        ]
+        ],
+        meta: {
+            title: '区块链'
+        },
     }
 ]
 

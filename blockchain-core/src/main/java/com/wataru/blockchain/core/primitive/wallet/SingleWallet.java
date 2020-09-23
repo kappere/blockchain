@@ -6,8 +6,6 @@ import com.wataru.blockchain.core.net.packet.payload.TransactionPayload;
 import com.wataru.blockchain.core.primitive.Blockchain;
 import com.wataru.blockchain.core.primitive.ByteBlob;
 import com.wataru.blockchain.core.primitive.LockScript;
-import com.wataru.blockchain.core.primitive.VersionPrefix;
-import com.wataru.blockchain.core.primitive.crypto.Base58Check;
 import com.wataru.blockchain.core.primitive.crypto.Secp256k1;
 import com.wataru.blockchain.core.primitive.transaction.Transaction;
 import com.wataru.blockchain.core.primitive.transaction.Utxo;
@@ -15,7 +13,6 @@ import com.wataru.blockchain.core.util.EncodeUtil;
 import com.wataru.blockchain.core.util.JsonUtil;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
-import org.springframework.data.redis.util.ByteUtils;
 
 import java.security.KeyPair;
 import java.security.PrivateKey;

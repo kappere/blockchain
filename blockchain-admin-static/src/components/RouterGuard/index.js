@@ -6,7 +6,7 @@ import { Spin } from 'antd'
 
 
 export default function RouterGuard(props) {
-    let { component, children = [], path, onEnter } = props
+    let { component, children = [], path, onEnter, meta } = props
     if (path.endsWith('/')) { path = path.substr(0, path.length - 1) }
     let history = useHistory()
     if (!React.router) {
@@ -17,6 +17,9 @@ export default function RouterGuard(props) {
             onEnter()
         }
     }, [onEnter])
+    if (meta) {
+        window.document.title = meta.title
+    }
     if (!component) {
         return ''
     } else if (component.name !== 'component') {

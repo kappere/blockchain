@@ -43,6 +43,9 @@ public class TransactionController {
         walletList.stream().filter(item -> item.getName().equals(walletName)).forEach(walletDto -> {
             transaction.set(walletDto.getSingleWallet().createTransaction(address, value));
         });
+        if (transaction.get() == null) {
+            return Response.error("未找到钱包数据");
+        }
         return Response.success(transaction.get());
     }
 }
