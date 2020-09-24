@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -157,6 +158,35 @@ public class ByteArraySerializer implements ByteSerializable {
             }
             return this;
         }
+        public Builder push(Map map) {
+            try {
+                SerializeUtil.writeInt(bos, map.size());
+                map.forEach((k, v) -> {
+                    dealMapInPush(k);
+                    dealMapInPush(v);
+                });
+            } catch (Exception e) {
+                doError(e);
+            }
+            return this;
+        }
+
+        private void dealMapInPush(Object k) {
+            if (k instanceof Integer) {
+                push((Integer) k);
+            } else if (k instanceof Long) {
+                push((Long) k);
+            } else if (k instanceof String) {
+                push((String) k);
+            } else if (k instanceof List) {
+                push(4, (List) k);
+            } else if (k instanceof Map) {
+                push((Map) k);
+            } else if (k instanceof ByteSerializable) {
+                push((ByteSerializable) k, false);
+            }
+        }
+
         public <T extends ByteSerializable> Builder push(T d, boolean withLength) {
             try {
                 byte[] b = d.serialize();
@@ -169,13 +199,22 @@ public class ByteArraySerializer implements ByteSerializable {
             }
             return this;
         }
-        public <T extends ByteSerializable> Builder push(List<T> d, boolean withLength) {
+
+        /**
+         * 序列化列表
+         * @param length 列表长度的大小
+         */
+        public Builder push(int length, List d) {
             try {
-                if (withLength) {
+                if (length == 1) {
                     SerializeUtil.writeByte(bos, (byte) d.size());
+                } else if (length == 4) {
+                    SerializeUtil.writeInt(bos,  d.size());
+                } else if (length == 8) {
+                    SerializeUtil.writeLong(bos, d.size());
                 }
-                for (T t : d) {
-                    SerializeUtil.writeByteArray(bos, t.serialize());
+                for (Object t : d) {
+                    dealMapInPush(t);
                 }
             } catch (Exception e) {
                 doError(e);
@@ -219,6 +258,21 @@ public class ByteArraySerializer implements ByteSerializable {
             index += 4;
             return this;
         }
+        public Extractor pullString(Consumer<String> consumer) {
+            StringBuilder sb = new StringBuilder();
+            byte b;
+            while ((b = bytes[index++]) != (byte) 0x00) {
+                sb.append((char) b);
+            }
+            consumer.accept(sb.toString());
+            return this;
+        }
+        public Extractor forEach(int count, Consumer<Extractor> action) {
+            for (int i = 0; i < count; i++) {
+                action.accept(this);
+            }
+            return this;
+        }
         public Extractor pullLong(Consumer<Long> consumer) {
             consumer.accept(bytes[index] & 0xff
                     | ((bytes[index + 1] & 0xff) << 8)
@@ -257,11 +311,36 @@ public class ByteArraySerializer implements ByteSerializable {
             consumer.accept(t);
             return this;
         }
-        public <T extends ByteSerializable> Extractor pullListWithSize(Supplier<T> supplier, Consumer<List<T>> consumer) {
+        /**
+         * 反序列化列表
+         * @param length 列表长度的大小
+         */
+        public <T extends ByteSerializable> Extractor pullList(int length, Supplier<T> supplier, Consumer<List<T>> consumer) {
             List<T> result = new ArrayList<>();
-            pullByte(d -> tmpSize.set(d & 0xff));
+            if (length == 1) {
+                pullByte(d -> tmpSize.set(d & 0xff));
+            } else if (length == 4) {
+                pullInt(d -> tmpSize.set(d));
+            } else if (length == 8) {
+                pullLong(d -> tmpSize.set(Math.toIntExact(d)));
+            }
             for (int i = 0; i < tmpSize.get(); i++) {
                 pullObject(supplier, result::add);
+            }
+            consumer.accept(result);
+            return this;
+        }
+        public <T extends ByteSerializable> Extractor pullListWithObjectSize(int length, Supplier<T> supplier, Consumer<List<T>> consumer) {
+            List<T> result = new ArrayList<>();
+            if (length == 1) {
+                pullByte(d -> tmpSize.set(d & 0xff));
+            } else if (length == 4) {
+                pullInt(d -> tmpSize.set(d));
+            } else if (length == 8) {
+                pullLong(d -> tmpSize.set(Math.toIntExact(d)));
+            }
+            for (int i = 0; i < tmpSize.get(); i++) {
+                pullObjectWithSize(supplier, result::add);
             }
             consumer.accept(result);
             return this;

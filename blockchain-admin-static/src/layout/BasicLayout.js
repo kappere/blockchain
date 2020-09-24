@@ -55,10 +55,13 @@ function BasicLayout(props) {
                             <Link to={`/node`}>节点</Link>
                         </Menu.Item>
                         <Menu.Item key={`/blockchain`} icon={<BlockOutlined />}>
-                            <Link to={`/blockchain`}>本地链</Link>
+                            <Link to={`/blockchain`}>链</Link>
                         </Menu.Item>
                         <Menu.Item key={`/wallet`} icon={<BlockOutlined />}>
                             <Link to={`/wallet`}>钱包</Link>
+                        </Menu.Item>
+                        <Menu.Item key={`/miner`} icon={<BlockOutlined />}>
+                            <Link to={`/miner`}>矿工</Link>
                         </Menu.Item>
                     </Menu.SubMenu>
                 </Menu>

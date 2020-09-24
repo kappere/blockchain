@@ -51,16 +51,16 @@ public class BlockchainCoreConfig implements DisposableBean {
 
     @PostConstruct
     public void init() throws IOException {
-        new Blockchain(1);
-        NodeRegistry.clientRegistry = new NodeRegistry();
-        NodeRegistry.clientRegistry.setLocalPort(coreServerPort);
         localNode = new Node(IpUtil.getLocalIpAddress(), coreServerPort);
         localNode.setExpireTime(-1);
-//        Blockchain.instance.restore("chain_" + localNode.toString().replaceAll("[:.]", "_") + ".dat");
+        new Blockchain("chain_" + localNode.toString().replaceAll("[:.]", "_"));
+        NodeRegistry.clientRegistry = new NodeRegistry();
+        NodeRegistry.clientRegistry.setLocalPort(coreServerPort);
+        Blockchain.instance.restore();
     }
 
     @Override
     public void destroy() throws Exception {
-        Blockchain.instance.store("chain_" + localNode.toString().replaceAll("[:.]", "_") + ".dat");
+        Blockchain.instance.store();
     }
 }

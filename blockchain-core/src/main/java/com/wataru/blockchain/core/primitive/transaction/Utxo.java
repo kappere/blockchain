@@ -1,18 +1,20 @@
 package com.wataru.blockchain.core.primitive.transaction;
 
-import com.wataru.blockchain.core.primitive.Blockchain;
 import com.wataru.blockchain.core.primitive.ByteBlob;
 import com.wataru.blockchain.core.primitive.LockScript;
 import com.wataru.blockchain.core.primitive.Script;
 import com.wataru.blockchain.core.primitive.crypto.Secp256k1;
-import com.wataru.blockchain.core.util.EncodeUtil;
+import com.wataru.blockchain.core.primitive.serialize.ByteArraySerializer;
+import com.wataru.blockchain.core.primitive.serialize.ByteSerializable;
 import lombok.Data;
 
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
-public class Utxo {
+public class Utxo implements ByteSerializable {
     /**
      * 保存UTXO
      * transactionId --- vout --- output
@@ -20,6 +22,35 @@ public class Utxo {
     private Map<ByteBlob.Byte256, Map<Integer, Transaction.TransactionOutput>> utxoMap = new HashMap<>();
 
     public Utxo() {}
+
+    @Override
+    public byte[] serialize() {
+        return new ByteArraySerializer.Builder()
+                .push(utxoMap)
+                .build(ByteArraySerializer::new)
+                .getData();
+    }
+
+    @Override
+    public int deserialize(byte[] data) {
+        utxoMap = new HashMap<>();
+        AtomicInteger length = new AtomicInteger();
+        return new ByteArraySerializer.Extractor(data)
+                .pullInt(length::set)
+                .forEach(length.get(), extractor -> {
+                    AtomicReference<ByteBlob.Byte256> key = new AtomicReference<>();
+                    Map<Integer, Transaction.TransactionOutput> tmp = new HashMap<>();
+                    AtomicInteger tmpLen = new AtomicInteger();
+                    extractor.pullObject(ByteBlob.Byte256::new, key::set)
+                            .pullInt(tmpLen::set)
+                            .forEach(tmpLen.get(), extractor1 -> {
+                                AtomicReference<Integer> key1 = new AtomicReference<>();
+                                extractor1.pullInt(key1::set)
+                                        .pullObject(Transaction.TransactionOutput::new, var -> tmp.put(key1.get(), var));
+                            });
+                    utxoMap.put(key.get(), tmp);
+                }).complete();
+    }
 
     @Data
     public static class PersonalUtxo {

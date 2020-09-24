@@ -142,7 +142,7 @@ public class Block implements ByteSerializable {
                 .push(this.nonce)
                 .push(this.index)
                 .push(this.hash, false)
-                .push(this.transactions, true)
+                .push(4, this.transactions)
                 .build(ByteArraySerializer::new).getData();
     }
 
@@ -157,7 +157,7 @@ public class Block implements ByteSerializable {
                 .pullInt(var -> this.nonce = var)
                 .pullInt(var -> this.index = var)
                 .pullObject(ByteBlob.Byte256::new, var -> this.hash = var)
-                .pullListWithSize(Transaction::new, var -> this.transactions = var)
+                .pullList(4, Transaction::new, var -> this.transactions = var)
                 .complete();
     }
 }

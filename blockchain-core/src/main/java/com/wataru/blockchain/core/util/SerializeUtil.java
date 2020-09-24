@@ -25,10 +25,7 @@ public class SerializeUtil {
         }
     }
     public static void writeString(ByteArrayOutputStream bos, String data) {
-        try {
-            bos.write(data.getBytes());
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        writeByteArray(bos, data.getBytes());
+        writeByte(bos, (byte) 0x00);
     }
 }

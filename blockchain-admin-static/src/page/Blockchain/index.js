@@ -21,7 +21,8 @@ export default function Blockchain() {
                     <Card>
                         <Descriptions title="详情" column={1}>
                             <Descriptions.Item label="难度">{blockchain.difficulty}</Descriptions.Item>
-                            <Descriptions.Item label="长度">{blockchain.chain && blockchain.chain.length}</Descriptions.Item>
+                            <Descriptions.Item label="长度">{blockchain.chain.length}</Descriptions.Item>
+                            <Descriptions.Item label="未确认交易数">{blockchain.unconfirmedTransactions && blockchain.unconfirmedTransactions.length}</Descriptions.Item>
                         </Descriptions>
                     </Card>
                 </div>

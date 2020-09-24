@@ -3,6 +3,8 @@ package com.wataru.blockchain.core.primitive;
 import com.wataru.blockchain.core.exception.BizException;
 import com.wataru.blockchain.core.primitive.block.Block;
 import com.wataru.blockchain.core.primitive.crypto.Base58Check;
+import com.wataru.blockchain.core.primitive.serialize.ByteArraySerializer;
+import com.wataru.blockchain.core.primitive.serialize.ByteSerializable;
 import com.wataru.blockchain.core.primitive.transaction.Transaction;
 import com.wataru.blockchain.core.primitive.transaction.Utxo;
 import com.wataru.blockchain.core.util.EncodeUtil;
@@ -20,7 +22,8 @@ import java.util.*;
  */
 @Data
 @Slf4j
-public class Blockchain {
+public class Blockchain implements ByteSerializable {
+    private String name;
     private List<Block> chain;
     private int difficulty = 2;
     public static Blockchain instance;
@@ -34,8 +37,9 @@ public class Blockchain {
     public Blockchain() {
     }
 
-    public Blockchain(int s) {
+    public Blockchain(String name) {
         instance = this;
+        this.name = name;
         utxo = new Utxo();
         chain = new ArrayList<>();
         unconfirmedTransactions = new ArrayList<>();
@@ -231,26 +235,27 @@ public class Blockchain {
 
     public List<Transaction> collectUnconfirmedTransactions(int size) {
         // 收集未确认交易
+        // TODO 打包的交易的utxo必须已确认
         if (unconfirmedTransactions.size() < size) {
             return null;
         }
         return new ArrayList<>(unconfirmedTransactions.subList(0, size));
     }
 
-    public void store(String filename) throws IOException {
-        File file = new File(filename);
+    public void store() throws IOException {
+        File file = new File(name + ".dat");
         if (file.exists()) {
             file.delete();
         }
         file.createNewFile();
         try (FileOutputStream fos = new FileOutputStream(file)) {
-            fos.write(JsonUtil.serialize(this));
+            fos.write(this.serialize());
         }
-        log.info("Blockchain saved in file {}.", filename);
+        log.info("Blockchain saved in file {}.", name + ".dat");
     }
 
-    public void restore(String filename) throws IOException {
-        File file = new File(filename);
+    public void restore() throws IOException {
+        File file = new File(name + ".dat");
         if (file.exists()) {
             try (FileInputStream fis = new FileInputStream(file);
                  ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
@@ -259,8 +264,31 @@ public class Blockchain {
                 while (-1 != (n = fis.read(buffer))) {
                     baos.write(buffer, 0, n);
                 }
+                this.deserialize(baos.toByteArray());
             }
+            log.info("Blockchain restored from file {}.", name + ".dat");
         }
-        log.info("Blockchain restored from file {}.", filename);
+    }
+
+    @Override
+    public byte[] serialize() {
+        return new ByteArraySerializer.Builder()
+                .push(this.name)
+                .push(4, this.chain)
+                .push(this.difficulty)
+                .push(this.utxo, false)
+                .push(4, this.unconfirmedTransactions)
+                .build(ByteArraySerializer::new).getData();
+    }
+
+    @Override
+    public int deserialize(byte[] data) {
+        return new ByteArraySerializer.Extractor(data)
+                .pullString(var -> this.name = var)
+                .pullList(4, Block::new, var -> this.chain = var)
+                .pullInt(var -> this.difficulty = var)
+                .pullObject(Utxo::new, var -> this.utxo = var)
+                .pullList(4, Transaction::new, var -> this.unconfirmedTransactions = var)
+                .complete();
     }
 }

@@ -180,8 +180,8 @@ public class Transaction implements ByteSerializable {
         return new ByteArraySerializer.Builder()
                 .push(this.version)
                 .push(transactionId, false)
-                .push(this.inputs, true)
-                .push(this.outputs, true)
+                .push(1, this.inputs)
+                .push(1, this.outputs)
                 .push(this.locktime)
                 .build(ByteArraySerializer::new).getData();
     }
@@ -191,8 +191,8 @@ public class Transaction implements ByteSerializable {
         return new ByteArraySerializer.Extractor(data)
                 .pullInt(var -> this.version = var)
                 .pullObject(ByteBlob.Byte256::new, var -> this.transactionId = var)
-                .pullListWithSize(TransactionInput::new, var -> this.inputs = var)
-                .pullListWithSize(TransactionOutput::new, var -> this.outputs = var)
+                .pullList(1, TransactionInput::new, var -> this.inputs = var)
+                .pullList(1, TransactionOutput::new, var -> this.outputs = var)
                 .pullInt(var -> this.locktime = var)
                 .complete();
     }
