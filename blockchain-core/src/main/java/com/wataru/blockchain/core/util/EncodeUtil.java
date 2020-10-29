@@ -153,5 +153,16 @@ public class EncodeUtil {
 
         String result3 = DigestUtils.sha512Hex("123456");
         System.out.println(result3);
+
+        System.out.println("---------------- 计算merkle root --------------");
+        ByteBlob.Byte256 s1 = new ByteBlob.Byte256("8347cee4a1cb5ad1bb0d92e86e6612dbf6cfc7649c9964f210d4069b426e720a");
+        ByteBlob.Byte256 s2 = new ByteBlob.Byte256("a16f3ce4dd5deb92d98ef5cf8afeaf0775ebca408f708b2146c4fb42b41e14be");
+        System.out.println(s1.toLittleEndianNumberHex());
+        System.out.println(s2.toLittleEndianNumberHex());
+        ByteBlob.ByteVar s3 = new ByteBlob.ByteVar(s1.toLittleEndianNumberHex() + s2.toLittleEndianNumberHex());
+        System.out.println(s3.toHex());
+        ByteBlob.Byte256 h1 = sha256(sha256(s3.getData()).getData());
+        System.out.println(h1.toHex());
+        System.out.println(h1.toLittleEndianNumberHex());
     }
 }

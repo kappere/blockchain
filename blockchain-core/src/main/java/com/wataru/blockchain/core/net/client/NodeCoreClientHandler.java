@@ -1,6 +1,7 @@
 package com.wataru.blockchain.core.net.client;
 
 import com.wataru.blockchain.core.net.Notifier;
+import com.wataru.blockchain.core.net.model.Pair;
 import com.wataru.blockchain.core.net.packet.BlockPacket;
 import com.wataru.blockchain.core.net.packet.payload.ResponsePayload;
 import com.wataru.blockchain.core.util.JsonUtil;
@@ -9,7 +10,6 @@ import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.util.ReferenceCountUtil;
-import javafx.util.Pair;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;

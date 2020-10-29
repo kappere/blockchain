@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class Utxo implements ByteSerializable {
     /**
      * 保存UTXO
-     * transactionId --- vout --- output
+     * transactionHash --- vout --- output
      */
     private Map<ByteBlob.Byte256, Map<Integer, Transaction.TransactionOutput>> utxoMap = new HashMap<>();
 
@@ -54,32 +54,30 @@ public class Utxo implements ByteSerializable {
 
     @Data
     public static class PersonalUtxo {
-        private ByteBlob.Byte256 transactionId;
-        private int vout;
+        private Transaction.OutPoint prevout;
         private Transaction.TransactionOutput output;
-        public PersonalUtxo(ByteBlob.Byte256 transactionId, int vout, Transaction.TransactionOutput output) {
-            this.transactionId = transactionId;
-            this.vout = vout;
+        public PersonalUtxo(ByteBlob.Byte256 transactionHash, int vout, Transaction.TransactionOutput output) {
+            this.prevout = new Transaction.OutPoint(transactionHash, vout);
             this.output = output;
         }
     }
 
-    public Transaction.TransactionOutput getTransactionOutput(ByteBlob.Byte256 transactionId, int vout) {
-        return utxoMap.getOrDefault(transactionId, Collections.emptyMap()).get(vout);
+    public Transaction.TransactionOutput getTransactionOutput(Transaction.OutPoint prevout) {
+        return utxoMap.getOrDefault(prevout.getHash(), Collections.emptyMap()).get(prevout.getVout());
     }
 
-    public void addUtxo(ByteBlob.Byte256 transactionId, List<Transaction.TransactionOutput> outputs) {
+    public void addUtxo(ByteBlob.Byte256 transactionHash, List<Transaction.TransactionOutput> outputs) {
         for (int i = 0; i < outputs.size(); i++) {
-            utxoMap.computeIfAbsent(transactionId, key -> new HashMap<>()).put(i, outputs.get(i));
+            utxoMap.computeIfAbsent(transactionHash, key -> new HashMap<>()).put(i, outputs.get(i));
         }
     }
 
-    public void removeUtxo(ByteBlob.Byte256 transactionId, int vout) {
-        Map<Integer, Transaction.TransactionOutput> transactionOutputsMap = utxoMap.get(transactionId);
+    public void removeUtxo(Transaction.OutPoint prevout) {
+        Map<Integer, Transaction.TransactionOutput> transactionOutputsMap = utxoMap.get(prevout.getHash());
         if (transactionOutputsMap != null) {
-            transactionOutputsMap.remove(vout);
+            transactionOutputsMap.remove(prevout.getVout());
             if (transactionOutputsMap.isEmpty()) {
-                utxoMap.remove(transactionId);
+                utxoMap.remove(prevout.getHash());
             }
         }
     }
@@ -90,11 +88,11 @@ public class Utxo implements ByteSerializable {
                 Secp256k1.sign(testSignData, privateKey).concat((byte) 0x01),
                 new ByteBlob.ByteVar(publicKey.getEncoded()));
         List<PersonalUtxo> result = new ArrayList<>();
-        utxoMap.forEach((transactionId, outputs) -> {
+        utxoMap.forEach((transactionHash, outputs) -> {
             outputs.forEach((vout, out) -> {
                 boolean unlocked = new LockScript().unlock(scriptSig, out.getScriptPubKey(), testSignData);
                 if (unlocked) {
-                    result.add(new PersonalUtxo(transactionId, vout, out));
+                    result.add(new PersonalUtxo(transactionHash, vout, out));
                 }
             });
         });
@@ -103,8 +101,8 @@ public class Utxo implements ByteSerializable {
 
     public void updateByTransaction(Transaction transaction) {
         for (Transaction.TransactionInput input : transaction.getInputs()) {
-            removeUtxo(input.getTransactionId(), input.getVout());
+            removeUtxo(input.getPrevout());
         }
-        addUtxo(transaction.getTransactionId(), transaction.getOutputs());
+        addUtxo(transaction.getHash(), transaction.getOutputs());
     }
 }

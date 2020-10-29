@@ -36,3 +36,5 @@ target/
 .idea
 *.dat
 .vscode
+.settings
+/blockchain-admin/src/main/resources/public

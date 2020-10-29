@@ -64,7 +64,7 @@ public class Script extends ByteArraySerializer {
                     }
                 }
             } catch (IllegalAccessException e) {
-                e.printStackTrace();
+                log.error("", e);
             }
             return null;
         }

@@ -95,7 +95,7 @@ function BasicLayout(props) {
                     {props.children}
                 </Layout.Content>
                 <Layout.Footer className="text-center pa-2 grey--text">
-                    <span>©{new Date().getFullYear()} Wataru. All rights reserved. </span>
+                    <span>©{new Date().getFullYear()} Zhou Ziqiang. All rights reserved. </span>
                 </Layout.Footer>
             </Layout>
         </Layout>

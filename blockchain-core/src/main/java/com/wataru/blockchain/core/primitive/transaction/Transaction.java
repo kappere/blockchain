@@ -20,10 +20,11 @@ public class Transaction implements ByteSerializable {
     private int version;
     private int locktime;
     /**
-     * 交易ID
+     * 交易hash
+     * memory only
      */
     @JsonSerialize(using = ByteArraySerializer.ByteArrayToHexSerializer.class)
-    private ByteBlob.Byte256 transactionId;
+    private ByteBlob.Byte256 hash;
     /**
      * 交易输入
      */
@@ -36,43 +37,23 @@ public class Transaction implements ByteSerializable {
     public Transaction() {}
 
     public Transaction(List<TransactionInput> inputs, List<TransactionOutput> outputs) {
-        this.transactionId = new ByteBlob.Byte256(UUID.randomUUID().toString().replace("-", ""));
         this.version = 1;
         this.locktime = 0xFFFFFFFF;
         this.inputs = inputs;
         this.outputs = outputs;
+        this.hash = computeHash();
     }
 
     /**
      * 计算交易hash
      */
-    public ByteBlob.Byte256 hash() {
-        return getToSignData(null);
-    }
-
-    /**
-     * 获取待签名/验签的数据
-     */
-    public ByteBlob.Byte256 getToSignData(Map<TransactionInput, TransactionOutput> srcUtxoMap) {
-        if (srcUtxoMap == null) {
-            srcUtxoMap = new HashMap<>();
-            // 获取input引用的输出
-            Utxo utxo = Blockchain.instance.getUtxo();
-            for (TransactionInput input : inputs) {
-                TransactionOutput src = utxo.getTransactionOutput(input.getTransactionId(), input.getVout());
-                srcUtxoMap.put(input, src);
-            }
-        }
-        Map<TransactionInput, TransactionOutput> finalSrcUtxoMap = srcUtxoMap;
-        for (TransactionInput input : inputs) {
-            if (!finalSrcUtxoMap.containsKey(input)) {
-                return null;
-            }
-        }
+    public ByteBlob.Byte256 computeHash() {
+        // 获取input引用的输出
+        Map<TransactionInput, TransactionOutput> srcUtxoMap = getInputsSources(inputs, false);
         return EncodeUtil.sha256(ByteUtils.concatAll(
                 JsonUtil.toJson(inputs.stream()
                         .map(TransactionInput::new)
-                        .peek(item -> item.setScriptSig(finalSrcUtxoMap.get(item).getScriptPubKey()))
+                        .peek(item -> item.setScriptSig(srcUtxoMap.get(item).getScriptPubKey()))
                         .collect(Collectors.toList())).getBytes(),
                 JsonUtil.toJson(outputs).getBytes()));
     }
@@ -80,23 +61,32 @@ public class Transaction implements ByteSerializable {
     /**
      * 根据input获取源output
      */
-    private Map<TransactionInput, TransactionOutput> getInputSource(List<TransactionInput> inputs, boolean onlyUtxo) {
-        Utxo utxo = Blockchain.instance.getUtxo();
+    private Map<TransactionInput, TransactionOutput> getInputsSources(List<TransactionInput> inputs, boolean onlyUtxo) {
         Map<TransactionInput, TransactionOutput> srcUtxoMap = new HashMap<>();
         // 获取input引用的输出
         for (TransactionInput input : inputs) {
-            TransactionOutput src = utxo.getTransactionOutput(input.getTransactionId(), input.getVout());
-            if (!onlyUtxo && src == null) {
-                Transaction unconfirmed = Blockchain.instance.getTransactionInUnconfirmed(input.getTransactionId());
-                if (unconfirmed != null) {
-                    src = unconfirmed.getOutputs().get(input.getVout());
-                } else {
-                    src = Blockchain.instance.getTransactionOutput(input.getTransactionId(), input.getVout());
-                }
-            }
+            TransactionOutput src = getInputSource(input, onlyUtxo);
             srcUtxoMap.put(input, src);
         }
         return srcUtxoMap;
+    }
+
+    /**
+     * 根据input获取源output
+     */
+    private TransactionOutput getInputSource(TransactionInput input, boolean onlyUtxo) {
+        Utxo utxo = Blockchain.instance.getUtxo();
+        OutPoint prevout = input.getPrevout();
+        TransactionOutput src = utxo.getTransactionOutput(prevout);
+        if (!onlyUtxo && src == null) {
+            Transaction unconfirmed = Blockchain.instance.getTransactionInUnconfirmed(prevout.getHash());
+            if (unconfirmed != null) {
+                src = unconfirmed.getOutputs().get(prevout.getVout());
+            } else {
+                src = Blockchain.instance.getTransactionOutput(prevout.getHash(), prevout.getVout());
+            }
+        }
+        return src;
     }
 
     /**
@@ -106,12 +96,11 @@ public class Transaction implements ByteSerializable {
 //        if (!verify()) {
 //            return false;
 //        }
-        Map<TransactionInput, TransactionOutput> srcUtxoMap = getInputSource(inputs, true);
+        Map<TransactionInput, TransactionOutput> srcUtxoMap = getInputsSources(inputs, true);
         long inputsValue = getInputsValue();
         long fee = 0;
         if (!Blockchain.instance.getChain().isEmpty()) {
-            ByteBlob.Byte256 toSignData = getToSignData(srcUtxoMap);
-            if (toSignData == null) {
+            if (hash == null) {
                 return false;
             }
             // 校验交易金额
@@ -120,7 +109,7 @@ public class Transaction implements ByteSerializable {
             }
             // 校验解锁脚本
             for (TransactionInput input : inputs) {
-                boolean unlocked = new LockScript().unlock(input.getScriptSig(), srcUtxoMap.get(input).getScriptPubKey(), toSignData);
+                boolean unlocked = new LockScript().unlock(input.getScriptSig(), srcUtxoMap.get(input).getScriptPubKey(), hash);
                 if (!unlocked) {
                     return false;
                 }
@@ -159,7 +148,7 @@ public class Transaction implements ByteSerializable {
      * 数据来源UTXO
      */
     public long getInputsValue() {
-        Map<TransactionInput, TransactionOutput> srcOutMap = getInputSource(inputs, false);
+        Map<TransactionInput, TransactionOutput> srcOutMap = getInputsSources(inputs, false);
         long total = 0L;
         for (TransactionInput input : inputs) {
             total += srcOutMap.get(input).value;
@@ -179,7 +168,6 @@ public class Transaction implements ByteSerializable {
     public byte[] serialize() {
         return new ByteArraySerializer.Builder()
                 .push(this.version)
-                .push(transactionId, false)
                 .push(1, this.inputs)
                 .push(1, this.outputs)
                 .push(this.locktime)
@@ -190,7 +178,6 @@ public class Transaction implements ByteSerializable {
     public int deserialize(byte[] data) {
         return new ByteArraySerializer.Extractor(data)
                 .pullInt(var -> this.version = var)
-                .pullObject(ByteBlob.Byte256::new, var -> this.transactionId = var)
                 .pullList(1, TransactionInput::new, var -> this.inputs = var)
                 .pullList(1, TransactionOutput::new, var -> this.outputs = var)
                 .pullInt(var -> this.locktime = var)
@@ -202,7 +189,7 @@ public class Transaction implements ByteSerializable {
         return "Transaction{" +
                 "version=" + version +
                 ", locktime=" + locktime +
-                ", transactionId='" + transactionId + '\'' +
+                ", hash='" + hash + '\'' +
                 ", inputs=" + inputs +
                 ", outputs=" + outputs +
                 '}';
@@ -219,14 +206,69 @@ public class Transaction implements ByteSerializable {
         Transaction that = (Transaction) o;
         return version == that.version &&
                 locktime == that.locktime &&
-                Objects.equals(transactionId, that.transactionId) &&
+                Objects.equals(hash, that.hash) &&
                 Objects.equals(inputs, that.inputs) &&
                 Objects.equals(outputs, that.outputs);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(version, locktime, transactionId, inputs, outputs);
+        return Objects.hash(version, locktime, hash, inputs, outputs);
+    }
+
+    @Data
+    public static class OutPoint implements ByteSerializable {
+        /**
+         * 交易ID，引用包含正在使用的UTXO的交易
+         */
+        @JsonSerialize(using = ByteArraySerializer.ByteArrayToHexSerializer.class)
+        private ByteBlob.Byte256 hash;
+        /**
+         * 输出索引（ vout ），标识使用来自该交易的哪个UTXO（第一个从0开始）
+         */
+        private int vout;
+
+        public OutPoint() {
+        }
+
+        public OutPoint(ByteBlob.Byte256 hash, int vout) {
+            this.hash = hash;
+            this.vout = vout;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            OutPoint outPoint = (OutPoint) o;
+            return vout == outPoint.vout &&
+                    Objects.equals(hash, outPoint.hash);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(hash, vout);
+        }
+
+        @Override
+        public byte[] serialize() {
+            return new ByteArraySerializer.Builder()
+                    .push(this.hash, false)
+                    .push(this.vout)
+                    .build(ByteArraySerializer::new).getData();
+        }
+
+        @Override
+        public int deserialize(byte[] data) {
+            return new ByteArraySerializer.Extractor(data)
+                    .pullObject(ByteBlob.Byte256::new, val -> this.hash = val)
+                    .pullInt(val -> this.vout = val)
+                    .complete();
+        }
     }
 
     @Data
@@ -234,12 +276,7 @@ public class Transaction implements ByteSerializable {
         /**
          * 交易ID，引用包含正在使用的UTXO的交易
          */
-        @JsonSerialize(using = ByteArraySerializer.ByteArrayToHexSerializer.class)
-        private ByteBlob.Byte256 transactionId;
-        /**
-         * 输出索引（ vout ），标识使用来自该交易的哪个UTXO（第一个从0开始）
-         */
-        private int vout;
+        private OutPoint prevout;
         /**
          * 满足UTXO上的条件的脚本，用于解锁并花费
          * <Sig> <PubKey>
@@ -254,15 +291,13 @@ public class Transaction implements ByteSerializable {
         public TransactionInput() {}
 
         public TransactionInput(TransactionInput transactionInput) {
-            this.transactionId = transactionInput.getTransactionId();
-            this.vout = transactionInput.getVout();
+            this.prevout = new OutPoint(transactionInput.getPrevout().getHash(), transactionInput.getPrevout().getVout());
             this.scriptSig = transactionInput.getScriptSig();
             this.sequence = transactionInput.getSequence();
         }
 
-        public TransactionInput(ByteBlob.Byte256 transactionId, int vout, Script scriptSig, int sequence) {
-            this.transactionId = transactionId;
-            this.vout = vout;
+        public TransactionInput(OutPoint prevout, Script scriptSig, int sequence) {
+            this.prevout = prevout;
             this.scriptSig = scriptSig;
             this.sequence = sequence;
         }
@@ -276,22 +311,20 @@ public class Transaction implements ByteSerializable {
                 return false;
             }
             TransactionInput that = (TransactionInput) o;
-            return vout == that.vout &&
-                    sequence == that.sequence &&
-                    Objects.equals(transactionId, that.transactionId) &&
+            return sequence == that.sequence &&
+                    Objects.equals(prevout, that.prevout) &&
                     Objects.equals(scriptSig, that.scriptSig);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(transactionId, vout, scriptSig, sequence);
+            return Objects.hash(prevout, scriptSig, sequence);
         }
 
         @Override
         public String toString() {
             return "TransactionInput{" +
-                    "transactionId='" + transactionId + '\'' +
-                    ", vout=" + vout +
+                    "prevout=" + prevout +
                     ", scriptSig='" + scriptSig.toString() + '\'' +
                     ", sequence=" + sequence +
                     '}';
@@ -300,8 +333,7 @@ public class Transaction implements ByteSerializable {
         @Override
         public byte[] serialize() {
             return new ByteArraySerializer.Builder()
-                    .push(this.transactionId, false)
-                    .push(this.vout)
+                    .push(this.prevout, false)
                     .push(this.scriptSig, true)
                     .push(this.sequence)
                     .build(ByteArraySerializer::new).getData();
@@ -310,8 +342,7 @@ public class Transaction implements ByteSerializable {
         @Override
         public int deserialize(byte[] data) {
             return new ByteArraySerializer.Extractor(data)
-                    .pullObject(ByteBlob.Byte256::new, val -> this.transactionId = val)
-                    .pullInt(val -> this.vout = val)
+                    .pullObject(OutPoint::new, val -> this.prevout = val)
                     .pullObjectWithSize(Script::new, val -> this.scriptSig = val)
                     .pullInt(val -> this.sequence = val)
                     .complete();

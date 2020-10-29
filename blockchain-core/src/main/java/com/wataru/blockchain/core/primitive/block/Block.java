@@ -12,8 +12,10 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * 区块
@@ -89,8 +91,35 @@ public class Block implements ByteSerializable {
      * 计算block的hash值
      */
     public ByteBlob.Byte256 computeHash() {
-        String hashStr = String.format("%d,%d,%d,%s,%s", index, getTime(), getNonce(), getPrevBlockHash(), JsonUtil.toJson(transactions));
+        String hashStr = String.format("%d,%d,%d,%s,%s", index, getTime(), getNonce(), getPrevBlockHash(), getMerkleRootHash());
         return EncodeUtil.sha256(hashStr.getBytes());
+    }
+
+    public ByteBlob.Byte256 computeMerkleRootHash() {
+        List<ByteBlob.Byte256> transationHashList = transactions.stream().map(Transaction::getHash).collect(Collectors.toList());
+        return merkleTree(transationHashList);
+    }
+
+    private ByteBlob.Byte256 merkleTree(List<ByteBlob.Byte256> hashList) {
+        if (hashList.size() == 1) {
+            return hashList.get(0);
+        }
+        List<ByteBlob.Byte256> newHashList = new ArrayList<>();
+        for (int i = 0; i < hashList.size() - 1; i += 2) {
+            ByteBlob.Byte256 rootHash = merkleHash(hashList.get(i), hashList.get(i + 1));
+            newHashList.add(rootHash);
+        }
+        if (hashList.size() % 2 == 1) {
+            ByteBlob.Byte256 h = hashList.get(hashList.size() - 1);
+            ByteBlob.Byte256 rootHash = merkleHash(h, h);
+            newHashList.add(rootHash);
+        }
+        return merkleTree(newHashList);
+    }
+
+    private ByteBlob.Byte256 merkleHash(ByteBlob.Byte256 hash1, ByteBlob.Byte256 hash2) {
+        ByteBlob.ByteVar hash0 = new ByteBlob.ByteVar(hash1.toLittleEndianNumberHex() + hash2.toLittleEndianNumberHex());
+        return EncodeUtil.sha256(EncodeUtil.sha256(hash0.getData()).getData());
     }
 
     public boolean mine(int difficulty, Function<Integer, Boolean> interruptCondition) {
@@ -159,5 +188,13 @@ public class Block implements ByteSerializable {
                 .pullObject(ByteBlob.Byte256::new, var -> this.hash = var)
                 .pullList(4, Transaction::new, var -> this.transactions = var)
                 .complete();
+    }
+
+    public static void main(String[] args) {
+        ByteBlob.Byte256 s1 = new ByteBlob.Byte256("8347cee4a1cb5ad1bb0d92e86e6612dbf6cfc7649c9964f210d4069b426e720a");
+        ByteBlob.Byte256 s2 = new ByteBlob.Byte256("a16f3ce4dd5deb92d98ef5cf8afeaf0775ebca408f708b2146c4fb42b41e14be");
+        System.out.println(new Block().merkleTree(Arrays.asList(
+                s1, s2
+        )));
     }
 }

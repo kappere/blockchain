@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 @RestController
-@RequestMapping("/transaction")
+@RequestMapping("/_api/transaction")
 public class TransactionController {
     private static List<WalletDto> walletList = new ArrayList<>();
 

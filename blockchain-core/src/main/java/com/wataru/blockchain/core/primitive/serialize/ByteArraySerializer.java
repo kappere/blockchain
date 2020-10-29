@@ -82,6 +82,11 @@ public class ByteArraySerializer implements ByteSerializable {
         return EncodeUtil.bytesToHexString(data);
     }
 
+    public String toLittleEndianNumberHex() {
+        byte[] reverseByteArray = EncodeUtil.reverseByteArray(Arrays.copyOf(data, data.length));
+        return EncodeUtil.bytesToHexString(reverseByteArray);
+    }
+
     public static class ByteArrayToHexSerializer extends JsonSerializer<ByteArraySerializer> {
         @Override
         public void serialize(ByteArraySerializer d,

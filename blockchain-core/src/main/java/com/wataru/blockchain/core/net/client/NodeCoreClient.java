@@ -1,6 +1,7 @@
 package com.wataru.blockchain.core.net.client;
 
 import com.wataru.blockchain.core.net.*;
+import com.wataru.blockchain.core.net.model.Pair;
 import com.wataru.blockchain.core.net.packet.BlockPacket;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.*;
@@ -9,7 +10,6 @@ import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
-import javafx.util.Pair;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.InitializingBean;

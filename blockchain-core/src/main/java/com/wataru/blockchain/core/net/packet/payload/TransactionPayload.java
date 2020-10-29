@@ -21,6 +21,7 @@ public class TransactionPayload extends BasePayload {
     public Transaction toTransaction() {
         Transaction b = new Transaction();
         b.deserialize(data);
+        b.setHash(b.computeHash());
         return b;
     }
 }

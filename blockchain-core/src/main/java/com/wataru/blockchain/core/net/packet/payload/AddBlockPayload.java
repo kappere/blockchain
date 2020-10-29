@@ -23,6 +23,7 @@ public class AddBlockPayload extends BasePayload {
     public Block toBlock() {
         Block b = new Block();
         b.deserialize(data);
+        b.getTransactions().forEach(transaction -> transaction.setHash(transaction.computeHash()));
         return b;
     }
 }

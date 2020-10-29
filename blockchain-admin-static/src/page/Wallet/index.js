@@ -21,7 +21,7 @@ export default function Wallet() {
     return (
         <div>
             <PageHeader
-                title="Wallet"
+                title="钱包"
                 className="white"
                 style={{ marginTop: '1px' }}
                 footer={
@@ -80,9 +80,9 @@ export default function Wallet() {
                         </Spin>
                     </div>
                     : tabKey === '2' ?
-                        <div></div>
+                        <></>
                         :
-                        <div></div>
+                        <></>
             }
 
             <Modal

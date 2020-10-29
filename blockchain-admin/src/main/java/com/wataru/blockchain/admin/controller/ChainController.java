@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/chain")
+@RequestMapping("/_api/chain")
 public class ChainController {
     @GetMapping("/detail")
     public Response<BlockChainDto> detail() {

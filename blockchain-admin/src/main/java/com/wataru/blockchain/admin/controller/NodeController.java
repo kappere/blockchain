@@ -5,7 +5,7 @@ import com.wataru.blockchain.core.net.model.Response;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/node")
+@RequestMapping("/_api/node")
 public class NodeController {
 
     @GetMapping("/list")

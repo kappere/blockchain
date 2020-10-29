@@ -69,6 +69,7 @@ public class Miner {
                 Collections.emptyList(),
                 Collections.singletonList(new Transaction.TransactionOutput(award, LockScript.formatLockScript(publicKeyHash))));
         newUnconfirmedTransactions.add(0, awardTransaction);
+        block.setMerkleRootHash(block.computeMerkleRootHash());
         return block;
     }
 }

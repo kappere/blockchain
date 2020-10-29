@@ -1,8 +1,8 @@
-import React from 'react';
-import './App.css';
+import React from 'react'
+import './App.css'
 import 'antd/dist/antd.css'
 import renderRouter from '@/router'
-import zhCN from 'antd/es/locale/zh_CN';
+import zhCN from 'antd/es/locale/zh_CN'
 import { ConfigProvider } from 'antd'
 import moment from 'moment'
 import 'moment/locale/zh-cn'

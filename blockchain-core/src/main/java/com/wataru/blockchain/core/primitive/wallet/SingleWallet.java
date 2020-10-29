@@ -65,8 +65,7 @@ public class SingleWallet extends Wallet {
             Utxo.PersonalUtxo personalUtxo = utxos.get(i);
             total += personalUtxo.getOutput().getValue();
             inputs.add(new Transaction.TransactionInput(
-                    personalUtxo.getTransactionId(),
-                    personalUtxo.getVout(),
+                    personalUtxo.getPrevout(),
                     null,
                     0));
             if (total >= value) {
@@ -75,10 +74,9 @@ public class SingleWallet extends Wallet {
                 // 转账到交易目标账户
                 outputs.add(new Transaction.TransactionOutput(value, LockScript.formatLockScript(publicKeyHash)));
                 Transaction transaction = new Transaction(inputs, outputs);
-                ByteBlob.Byte256 toSignData = transaction.getToSignData(null);
                 for (Transaction.TransactionInput input : transaction.getInputs()) {
                     input.setScriptSig(LockScript.formatUnlockScript(
-                            Secp256k1.sign(toSignData, privateKey).concat((byte) 0x01),
+                            Secp256k1.sign(transaction.getHash(), privateKey).concat((byte) 0x01),
                             new ByteBlob.ByteVar(publicKey.getEncoded())
                     ));
                 }
@@ -98,10 +96,10 @@ public class SingleWallet extends Wallet {
                             LockScript.formatLockScript(EncodeUtil.hash160(new ByteBlob.Byte256(publicKey.getEncoded())))));
                 }
                 // 重新计算解锁脚本
-                toSignData = transaction.getToSignData(null);
+                transaction.setHash(transaction.computeHash());
                 for (Transaction.TransactionInput input : transaction.getInputs()) {
                     input.setScriptSig(LockScript.formatUnlockScript(
-                            Secp256k1.sign(toSignData, privateKey).concat((byte) 0x01),
+                            Secp256k1.sign(transaction.getHash(), privateKey).concat((byte) 0x01),
                             new ByteBlob.ByteVar(publicKey.getEncoded())
                     ));
                 }

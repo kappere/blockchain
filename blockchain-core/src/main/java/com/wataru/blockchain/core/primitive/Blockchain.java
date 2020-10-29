@@ -58,7 +58,7 @@ public class Blockchain implements ByteSerializable {
         clearUnconfirmedTransaction();
         genesisBlock.getTransactions().add(transaction);
         genesisBlock.setPrevBlockHash(new ByteBlob.Byte256());
-        genesisBlock.setMerkleRootHash(new ByteBlob.Byte256());
+        genesisBlock.setMerkleRootHash(genesisBlock.computeMerkleRootHash());
         genesisBlock.setHash(genesisBlock.computeHash());
         return genesisBlock;
     }
@@ -67,9 +67,9 @@ public class Blockchain implements ByteSerializable {
         return chain.get(chain.size() - 1);
     }
 
-    public Transaction getTransactionInUnconfirmed(ByteBlob.Byte256 transactionId) {
+    public Transaction getTransactionInUnconfirmed(ByteBlob.Byte256 transactionHash) {
         for (Transaction unconfirmedTransaction : unconfirmedTransactions) {
-            if (unconfirmedTransaction.getTransactionId().equals(transactionId)) {
+            if (unconfirmedTransaction.getHash().equals(transactionHash)) {
                 return unconfirmedTransaction;
             }
         }
@@ -77,11 +77,11 @@ public class Blockchain implements ByteSerializable {
     }
 
     public boolean isTransactionInUnconfirmed(Transaction transaction) {
-        return unconfirmedTransactions.stream().anyMatch(item -> item.getTransactionId().equals(transaction.getTransactionId()));
+        return unconfirmedTransactions.stream().anyMatch(item -> item.getHash().equals(transaction.getHash()));
     }
 
     public boolean isTransactionInChain(Transaction transaction) {
-        return getTransactionOutput(transaction.getTransactionId(), 0) != null;
+        return getTransactionOutput(transaction.getHash(), 0) != null;
     }
 
     public boolean isTransactionProcessed(Transaction transaction) {
@@ -105,16 +105,16 @@ public class Blockchain implements ByteSerializable {
     }
 
     public void removeUnconfirmedTransaction(List<Transaction> transactions) {
-        unconfirmedTransactions.removeIf(transaction -> transactions.stream().anyMatch(item -> item.getTransactionId().equals(transaction.getTransactionId())));
+        unconfirmedTransactions.removeIf(transaction -> transactions.stream().anyMatch(item -> item.getHash().equals(transaction.getHash())));
     }
 
     /**
      * 获取out，当UTXO中已经移除该out时，需要查找整条链
      */
-    public Transaction.TransactionOutput getTransactionOutput(ByteBlob.Byte256 transactionId, int vout) {
+    public Transaction.TransactionOutput getTransactionOutput(ByteBlob.Byte256 transactionHash, int vout) {
         for (Block block : chain) {
             for (Transaction transaction : block.getTransactions()) {
-                if (transaction.getTransactionId().equals(transactionId)) {
+                if (transaction.getHash().equals(transactionHash)) {
                     return transaction.getOutputs().get(vout);
                 }
             }
@@ -127,7 +127,7 @@ public class Blockchain implements ByteSerializable {
         for (Block block : blockchain.getChain()) {
             for (Transaction transaction : block.getTransactions()) {
                 this.unconfirmedTransactions.stream()
-                        .filter(item -> item.getTransactionId().equals(transaction.getTransactionId()))
+                        .filter(item -> item.getHash().equals(transaction.getHash()))
                         .findAny()
                         .ifPresent(toRemoveTransactions::add);
             }
@@ -139,13 +139,7 @@ public class Blockchain implements ByteSerializable {
     }
 
     public synchronized boolean addBlock(Block block) {
-        if (!latestBlock().getHash().equals(block.getPrevBlockHash())) {
-            return false;
-        }
-        if (!validatePoofOfWork(block)) {
-            return false;
-        }
-        if (!validateTotalValueOfBlock(block)) {
+        if (!checkBlockValid(block, latestBlock())) {
             return false;
         }
         chain.add(block);
@@ -180,7 +174,7 @@ public class Blockchain implements ByteSerializable {
                 return false;
             } else if (isTransactionInUnconfirmed(transaction)) {
                 for (Transaction unconfirmedTransaction : unconfirmedTransactions) {
-                    if (unconfirmedTransaction.getTransactionId().equals(transaction.getTransactionId())) {
+                    if (unconfirmedTransaction.getHash().equals(transaction.getHash())) {
                         if (!unconfirmedTransaction.equals(transaction)) {
                             return false;
                         }
@@ -199,13 +193,42 @@ public class Blockchain implements ByteSerializable {
         return total == fee;
     }
 
+    private boolean checkBlockValid(Block block, Block previousBlock) {
+        for (Transaction transaction : block.getTransactions()) {
+            if (!transaction.getHash().equals(transaction.computeHash())) {
+                return false;
+            }
+        }
+        if (!block.getMerkleRootHash().equals(block.computeMerkleRootHash())) {
+            return false;
+        }
+        if (!block.getHash().equals(block.computeHash())) {
+            return false;
+        }
+        if (previousBlock != null) {
+            if (!block.getPrevBlockHash().equals(previousBlock.getHash())) {
+                return false;
+            }
+            if (block.getIndex() != previousBlock.getIndex() + 1) {
+                return false;
+            }
+        }
+        if (!validatePoofOfWork(block)) {
+            return false;
+        }
+        if (!validateTotalValueOfBlock(block)) {
+            return false;
+        }
+        return true;
+    }
+
     public boolean checkChainValid() {
         Block previousBlock = null;
         for (Block block : chain) {
-            if (!block.getHash().equals(block.computeHash())) {
-                return false;
-            }
-            if (previousBlock != null && !block.getPrevBlockHash().equals(previousBlock.getHash())) {
+            block.getTransactions().forEach(transaction -> transaction.setHash(transaction.computeHash()));
+            block.setMerkleRootHash(block.computeMerkleRootHash());
+            block.setHash(block.computeHash());
+            if (!checkBlockValid(block, previousBlock)) {
                 return false;
             }
             previousBlock = block;
@@ -265,6 +288,13 @@ public class Blockchain implements ByteSerializable {
                     baos.write(buffer, 0, n);
                 }
                 this.deserialize(baos.toByteArray());
+                for (Block block : this.chain) {
+                    for (Transaction transaction : block.getTransactions()) {
+                        transaction.setHash(transaction.computeHash());
+                    }
+                    block.setMerkleRootHash(block.computeMerkleRootHash());
+                    block.setHash(block.computeHash());
+                }
             }
             log.info("Blockchain restored from file {}.", name + ".dat");
         }
@@ -273,10 +303,9 @@ public class Blockchain implements ByteSerializable {
     @Override
     public byte[] serialize() {
         return new ByteArraySerializer.Builder()
-                .push(this.name)
-                .push(4, this.chain)
                 .push(this.difficulty)
                 .push(this.utxo, false)
+                .push(4, this.chain)
                 .push(4, this.unconfirmedTransactions)
                 .build(ByteArraySerializer::new).getData();
     }
@@ -284,10 +313,9 @@ public class Blockchain implements ByteSerializable {
     @Override
     public int deserialize(byte[] data) {
         return new ByteArraySerializer.Extractor(data)
-                .pullString(var -> this.name = var)
-                .pullList(4, Block::new, var -> this.chain = var)
                 .pullInt(var -> this.difficulty = var)
                 .pullObject(Utxo::new, var -> this.utxo = var)
+                .pullList(4, Block::new, var -> this.chain = var)
                 .pullList(4, Transaction::new, var -> this.unconfirmedTransactions = var)
                 .complete();
     }
